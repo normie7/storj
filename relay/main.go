@@ -43,5 +43,5 @@ func parseArgs() (addr string) {
 		log.Fatal("wrong address format. try :relayPort")
 	}
 
-	return p[1]
+	return os.Args[1]
 }

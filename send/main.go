@@ -19,7 +19,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// localhost:27001
 	s, err := filesender.RegisterSender(address)
 	if err != nil {
 		log.Fatal(err)
@@ -60,7 +59,7 @@ func main() {
 
 	_, err = s.SendFile(filename, fi.Size(), f)
 	if err != nil {
-		log.Println(f.Name(), "is directory")
+		log.Println(err)
 		return
 	}
 	return

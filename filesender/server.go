@@ -87,7 +87,9 @@ func (r relay) handleConnection(conn net.Conn) {
 		err = errors.New("wrong client type")
 	}
 
-	log.Println(err)
+	if err != nil {
+		log.Println(err)
+	}
 	return
 }
 
