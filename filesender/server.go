@@ -26,13 +26,13 @@ type relay struct {
 	senders map[string]chan handler // map secretKey receiverChan
 }
 
-func (r relay) registerSender(secretKey string, receiverChan chan handler) {
+func (r *relay) registerSender(secretKey string, receiverChan chan handler) {
 	r.sMutex.Lock()
 	r.senders[secretKey] = receiverChan
 	r.sMutex.Unlock()
 }
 
-func (r relay) takeSender(secretKey string) (chan handler, bool) {
+func (r *relay) takeSender(secretKey string) (chan handler, bool) {
 	r.sMutex.Lock()
 	defer r.sMutex.Unlock()
 
@@ -44,7 +44,7 @@ func (r relay) takeSender(secretKey string) (chan handler, bool) {
 	return h, ok
 }
 
-func (r relay) Start() error {
+func (r *relay) Start() error {
 	s, err := net.Listen("tcp", r.address)
 	if err != nil {
 		return err
@@ -60,11 +60,11 @@ func (r relay) Start() error {
 	}
 }
 
-func (r relay) Stop() {
+func (r *relay) Stop() {
 	// todo
 }
 
-func (r relay) handleConnection(conn net.Conn) {
+func (r *relay) handleConnection(conn net.Conn) {
 	var err error
 	h := newHandler(conn)
 	defer func() {
@@ -93,7 +93,7 @@ func (r relay) handleConnection(conn net.Conn) {
 	return
 }
 
-func (r relay) handleSender(h handler) error {
+func (r *relay) handleSender(h handler) error {
 	secretKey := uuid.New().String()
 
 	receiverChan := make(chan handler)
@@ -122,7 +122,7 @@ func (r relay) handleSender(h handler) error {
 	}
 }
 
-func (r relay) handleReceiver(secretKey string, h handler) error {
+func (r *relay) handleReceiver(secretKey string, h handler) error {
 	receiverChan, ok := r.takeSender(secretKey)
 	if !ok {
 		h.Close()
