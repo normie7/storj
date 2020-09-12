@@ -5,13 +5,11 @@ import (
 	"net"
 )
 
-type Receiver interface {
-	AskForFile() error
-	ReceiveFile() (fileName string, fileSize int64, rc io.Reader, err error)
-	Quit() error
+type Receiver struct {
+	h *connHandler
 }
 
-func RegisterReceiver(address, secretCode string) (Receiver, error) {
+func NewReceiver(address, secretCode string) (*Receiver, error) {
 
 	conn, err := net.Dial("tcp", address)
 	if err != nil {
@@ -29,5 +27,28 @@ func RegisterReceiver(address, secretCode string) (Receiver, error) {
 		return nil, err
 	}
 
-	return &client{h: h}, nil
+	return &Receiver{h: h}, nil
+}
+
+func (r *Receiver) AskForFile() error {
+	return r.h.sendStartFileTransfer()
+}
+
+func (r *Receiver) ReceiveFile() (fileName string, fileSize int64, rc io.Reader, err error) {
+
+	fileName, err = r.h.receiveFileHeader()
+	if err != nil {
+		return
+	}
+
+	fileSize, rc, err = r.h.receiveFileData()
+	if err != nil {
+		return
+	}
+
+	return fileName, fileSize, io.LimitReader(rc, fileSize), nil
+}
+
+func (r *Receiver) Quit() error {
+	return r.h.Close()
 }

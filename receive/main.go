@@ -19,7 +19,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	r, err := filesender.RegisterReceiver(address, secretCode)
+	r, err := filesender.NewReceiver(address, secretCode)
 	if err != nil {
 		log.Fatal(err)
 	}

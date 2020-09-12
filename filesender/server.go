@@ -17,24 +17,24 @@ type Relay interface {
 }
 
 func NewRelay(address string) (Relay, error) {
-	return &relay{address: address, senders: make(map[string]chan handler)}, nil
+	return &relay{address: address, senders: make(map[string]chan *connHandler)}, nil
 }
 
 type relay struct {
 	address string
-	sMutex  sync.Mutex
-	senders map[string]chan handler // map secretKey receiverChan
+	mu      sync.Mutex
+	senders map[string]chan *connHandler // map secretKey receiverChan
 }
 
-func (r *relay) registerSender(secretKey string, receiverChan chan handler) {
-	r.sMutex.Lock()
+func (r *relay) registerSender(secretKey string, receiverChan chan *connHandler) {
+	r.mu.Lock()
 	r.senders[secretKey] = receiverChan
-	r.sMutex.Unlock()
+	r.mu.Unlock()
 }
 
-func (r *relay) takeSender(secretKey string) (chan handler, bool) {
-	r.sMutex.Lock()
-	defer r.sMutex.Unlock()
+func (r *relay) takeSender(secretKey string) (chan *connHandler, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	h, ok := r.senders[secretKey]
 	if !ok {
@@ -93,10 +93,10 @@ func (r *relay) handleConnection(conn net.Conn) {
 	return
 }
 
-func (r *relay) handleSender(h handler) error {
+func (r *relay) handleSender(h *connHandler) error {
 	secretKey := uuid.New().String()
 
-	receiverChan := make(chan handler)
+	receiverChan := make(chan *connHandler)
 	r.registerSender(secretKey, receiverChan)
 	err := h.sendRegisterSenderReply(secretKey)
 	if err != nil {
@@ -122,7 +122,7 @@ func (r *relay) handleSender(h handler) error {
 	}
 }
 
-func (r *relay) handleReceiver(secretKey string, h handler) error {
+func (r *relay) handleReceiver(secretKey string, h *connHandler) error {
 	receiverChan, ok := r.takeSender(secretKey)
 	if !ok {
 		h.Close()

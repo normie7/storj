@@ -18,6 +18,7 @@ const (
 )
 
 var (
+	ErrCantDecode    = errors.New("can't decode")
 	ErrWrongCmd      = errors.New("wrong command")
 	ErrWrongDataSize = errors.New("wrong data size")
 

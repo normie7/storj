@@ -7,37 +7,13 @@ import (
 	"net"
 )
 
-// probably unnecessary interface, could just use struct
-type handler interface {
-	sendRegisterSender() error
-	sendRegisterReceiver(secretKey string) error
-	receiveRegisterCmd() (cmd MessageType, msg string, err error)
-
-	sendRegisterSenderReply(secretKey string) error
-	receiveRegisterSenderReply() (secretKey string, err error)
-
-	sendRegisterReceiverReply() error
-	receiveRegisterReceiverReply() error
-
-	sendStartFileTransfer() error
-	receiveStartFileTransfer() error
-
-	sendFileHeader(filename string) error
-	receiveFileHeader() (filename string, err error)
-
-	sendFileData(fileSize int64, r io.Reader) (n int64, err error)
-	receiveFileData() (fileSize int64, r io.Reader, err error)
-
-	io.Reader
-	io.Writer
-	io.Closer
-}
+const reservedSpace = 0b10101010
 
 type connHandler struct {
 	conn net.Conn
 }
 
-func newHandler(conn net.Conn) handler {
+func newHandler(conn net.Conn) *connHandler {
 	return &connHandler{conn: conn}
 }
 
@@ -166,10 +142,16 @@ func (h *connHandler) receiveMessages(cmds ...MessageType) (cmd MessageType, msg
 
 func (h *connHandler) sendData(cmd byte, dataSize int64, r io.Reader) (n int64, err error) {
 
+	// message:
+	// reservedSpace, cmd, reservedSpace, []bufForDataSize, reservedSpace
+
+	// buffer for dataSize
 	buf := make([]byte, binary.MaxVarintLen64)
 	_ = binary.PutVarint(buf, dataSize)
 
-	_, err = h.conn.Write(append([]byte{cmd}, buf...))
+	header := []byte{reservedSpace, cmd, reservedSpace}
+	header = append(header, buf...)
+	_, err = h.conn.Write(append(header, reservedSpace))
 	if err != nil {
 		return 0, err
 	}
@@ -184,9 +166,25 @@ func (h *connHandler) sendData(cmd byte, dataSize int64, r io.Reader) (n int64, 
 }
 
 func (h *connHandler) receiveData() (cmd MessageType, dataSize int64, r io.Reader, err error) {
-	buff := make([]byte, 11)
+	buff := make([]byte, binary.MaxVarintLen64+4) // datasize + cmd + 3 * reservedSpace
+
 	_, err = h.conn.Read(buff)
-	cmdByte := buff[0]
-	dataSize, _ = binary.Varint(buff[1:])
+	if err != nil {
+		return 0, 0, nil, ErrCantDecode
+	}
+
+	if buff[0] != reservedSpace || buff[2] != reservedSpace || buff[len(buff)-1] != reservedSpace {
+		return 0, 0, nil, ErrCantDecode
+	}
+
+	cmdByte := buff[1]
+
+	// 	n == 0: buf too small
+	// 	n  < 0: value larger than 64 bits (overflow)
+	// 	        and -n is the number of bytes read
+	dataSize, n := binary.Varint(buff[3 : len(buff)-2])
+	if n == 0 || n < 0 {
+		return 0, 0, nil, ErrCantDecode
+	}
 	return MessageType(cmdByte), dataSize, h.conn, err
 }
